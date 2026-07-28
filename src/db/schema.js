@@ -123,6 +123,19 @@ export const dailyDigests = pgTable(
   }),
 );
 
+export const slackInstallations = pgTable('slack_installations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id')
+    .references(() => workspaces.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(),
+  botToken: text('bot_token').notNull(),
+  botUserId: text('bot_user_id').notNull(),
+  scopes: text('scopes').notNull(),
+  installedBySlackUserId: text('installed_by_slack_user_id'),
+  installedAt: timestamp('installed_at').defaultNow().notNull(),
+});
+
 export const schema = {
   workspaces,
   users,
@@ -131,4 +144,5 @@ export const schema = {
   standups,
   standupResponses,
   dailyDigests,
+  slackInstallations,
 };
