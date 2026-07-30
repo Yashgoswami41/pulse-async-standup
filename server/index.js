@@ -42,7 +42,7 @@ app.get('/api/dashboard', async (_req, res) => {
       SELECT standups.id, standups.name, standups.prompt_time AS "promptTime",
         standups.digest_time AS "digestTime", teams.name AS "teamName", teams.timezone
       FROM standups JOIN teams ON teams.id = standups.team_id
-      WHERE standups.is_active = true ORDER BY standups.created_at ASC LIMIT 1
+      WHERE standups.is_active = true ORDER BY standups.created_at DESC LIMIT 1
     `;
     if (!standup) return res.status(404).json({ error: 'No active standup found' });
     const members = await sql`
