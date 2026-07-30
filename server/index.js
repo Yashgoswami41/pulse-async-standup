@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3001;
 const oauthStates = new Map();
 const slackScopes = 'chat:write,im:write,im:history,users:read,channels:read,groups:read';
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json({ verify: (req, _res, buffer) => { req.rawBody = buffer; } }));
 
 function isValidSlackRequest(req) {
@@ -177,6 +177,10 @@ app.post('/api/slack/events', async (req, res) => {
   if (req.body.type === 'event_callback') handleSlackMessage(req.body.event, req.body.team_id).catch((error) => console.error('Slack event failed', error.message));
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend API running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Backend API running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

@@ -5,7 +5,7 @@ import './styles.css';
 
 const nav = [{ label: 'Overview', icon: LayoutDashboard }, { label: 'Today standup', icon: Bolt }, { label: 'Team', icon: Users }, { label: 'History', icon: CalendarDays }];
 const colors = ['peach', 'lilac', 'blue', 'lime'];
-const api = 'http://localhost:3001/api/dashboard';
+const api = import.meta.env.DEV ? 'http://localhost:3001/api/dashboard' : '/api/dashboard';
 const initials = (name = 'Member') => name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase();
 function Avatar({ member, index = 0 }) { return <div className={`avatar avatar-${colors[index % colors.length]}`}>{initials(member.name)}</div>; }
 
