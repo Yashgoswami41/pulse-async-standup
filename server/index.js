@@ -120,10 +120,61 @@ app.get('/api/slack/oauth/callback', async (req, res) => {
   }
 });
 
-app.post('/api/slack/events', (req, res) => {
+async function sendSlackMessage(token, channel, text) {
+  const response = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel, text }),
+  });
+  const data = await response.json();
+  if (!data.ok) throw new Error(data.error || 'Slack message failed');
+}
+
+async function standupContext(slackWorkspaceId, slackUserId) {
+  const [installation] = await sql`
+    SELECT workspaces.id AS "workspaceId", slack_installations.bot_token AS "botToken"
+    FROM workspaces JOIN slack_installations ON slack_installations.workspace_id = workspaces.id
+    WHERE workspaces.slack_workspace_id = ${slackWorkspaceId}
+  `;
+  if (!installation) return null;
+  let [team] = await sql`SELECT id FROM teams WHERE workspace_id = ${installation.workspaceId} ORDER BY created_at LIMIT 1`;
+  if (!team) [team] = await sql`INSERT INTO teams (workspace_id, name, timezone) VALUES (${installation.workspaceId}, 'Daily team', 'Asia/Kolkata') RETURNING id`;
+  let [standup] = await sql`SELECT id FROM standups WHERE team_id = ${team.id} AND is_active = true LIMIT 1`;
+  if (!standup) [standup] = await sql`INSERT INTO standups (team_id, name, prompt_time, reminder_time, digest_time, working_days) VALUES (${team.id}, 'Daily standup', '10:00', '14:00', '17:30', ${JSON.stringify(['monday','tuesday','wednesday','thursday','friday'])}::jsonb) RETURNING id`;
+  let [user] = await sql`SELECT id FROM users WHERE slack_user_id = ${slackUserId} LIMIT 1`;
+  if (!user) [user] = await sql`INSERT INTO users (workspace_id, slack_user_id, name, timezone) VALUES (${installation.workspaceId}, ${slackUserId}, 'Slack member', 'Asia/Kolkata') RETURNING id`;
+  await sql`INSERT INTO team_members (team_id, user_id, is_active) VALUES (${team.id}, ${user.id}, true) ON CONFLICT (team_id, user_id) DO NOTHING`;
+  return { token: installation.botToken, standupId: standup.id, userId: user.id };
+}
+
+async function handleSlackMessage(event, slackWorkspaceId) {
+  if (event.bot_id || event.subtype || event.channel_type !== 'im') return;
+  const context = await standupContext(slackWorkspaceId, event.user);
+  if (!context) return;
+  const [response] = await sql`SELECT id, yesterday, today, blockers FROM standup_responses WHERE standup_id = ${context.standupId} AND user_id = ${context.userId} AND response_date = CURRENT_DATE AND status = 'in_progress' LIMIT 1`;
+  const text = event.text.trim();
+  if (!response) {
+    if (text.toLowerCase() !== 'standup') return sendSlackMessage(context.token, event.channel, 'Reply *standup* to begin your daily update.');
+    await sql`INSERT INTO standup_responses (standup_id, user_id, response_date, status) VALUES (${context.standupId}, ${context.userId}, CURRENT_DATE, 'in_progress') ON CONFLICT (standup_id, user_id, response_date) DO UPDATE SET status = 'in_progress'`;
+    return sendSlackMessage(context.token, event.channel, '1/3 What did you do yesterday?');
+  }
+  if (!response.yesterday) {
+    await sql`UPDATE standup_responses SET yesterday = ${text} WHERE id = ${response.id}`;
+    return sendSlackMessage(context.token, event.channel, '2/3 What are you doing today?');
+  }
+  if (!response.today) {
+    await sql`UPDATE standup_responses SET today = ${text} WHERE id = ${response.id}`;
+    return sendSlackMessage(context.token, event.channel, '3/3 Any blockers? Reply None if you have no blockers.');
+  }
+  await sql`UPDATE standup_responses SET blockers = ${text}, status = 'completed', submitted_at = NOW() WHERE id = ${response.id}`;
+  return sendSlackMessage(context.token, event.channel, 'Done. Your standup update is saved.');
+}
+
+app.post('/api/slack/events', async (req, res) => {
   if (!isValidSlackRequest(req)) return res.status(401).send('Invalid Slack signature');
   if (req.body.type === 'url_verification') return res.status(200).send(req.body.challenge);
   res.status(200).send();
+  if (req.body.type === 'event_callback') handleSlackMessage(req.body.event, req.body.team_id).catch((error) => console.error('Slack event failed', error.message));
 });
 
 app.listen(PORT, () => {
