@@ -148,9 +148,30 @@ async function standupContext(slackWorkspaceId, slackUserId) {
 }
 
 async function handleSlackMessage(event, slackWorkspaceId) {
-  if (event.bot_id || event.subtype || event.channel_type !== 'im') return;
+  console.log("========== HANDLE SLACK MESSAGE ==========");
+  console.log("Workspace ID:", slackWorkspaceId);
+  console.log("Event:");
+  console.log(JSON.stringify(event, null, 2));
+
+  if (event.bot_id || event.subtype || event.channel_type !== 'im') {
+    console.log("Ignored event");
+    return;
+  }
+
+  console.log("Passed event checks");
+
   const context = await standupContext(slackWorkspaceId, event.user);
-  if (!context) return;
+
+  console.log("Context:");
+  console.log(context);
+
+  if (!context) {
+    console.log("Context is NULL");
+    return;
+  }
+
+  console.log("Looking for today's response...");
+
   const [response] = await sql`SELECT id, yesterday, today, blockers FROM standup_responses WHERE standup_id = ${context.standupId} AND user_id = ${context.userId} AND response_date = CURRENT_DATE AND status = 'in_progress' LIMIT 1`;
   const text = event.text.trim();
   if (!response) {
@@ -171,20 +192,30 @@ async function handleSlackMessage(event, slackWorkspaceId) {
 }
 
 app.post('/api/slack/events', async (req, res) => {
-  console.log(req.body);
-  console.log(req.headers);
+  console.log("========== NEW SLACK REQUEST ==========");
+  console.log("Body:");
+  console.log(JSON.stringify(req.body, null, 2));
+
   if (req.body.type === 'url_verification') {
     return res.status(200).send(req.body.challenge);
   }
 
   if (!isValidSlackRequest(req)) {
-    return res.status(401).send('Invalid Slack signature');
+    console.log("Invalid Slack signature");
+    return res.status(401).send("Invalid Slack signature");
   }
+
+  console.log("Signature verified");
 
   res.status(200).send();
 
-  if (req.body.type === 'event_callback') {
-    handleSlackMessage(req.body.event, req.body.team_id).catch(console.error);
+  if (req.body.type === "event_callback") {
+    try {
+      await handleSlackMessage(req.body.event, req.body.team_id);
+    } catch (err) {
+      console.error("========== HANDLE ERROR ==========");
+      console.error(err);
+    }
   }
 });
 
