@@ -131,20 +131,40 @@ async function sendSlackMessage(token, channel, text) {
 }
 
 async function standupContext(slackWorkspaceId, slackUserId) {
-  const [installation] = await sql`
-    SELECT workspaces.id AS "workspaceId", slack_installations.bot_token AS "botToken"
-    FROM workspaces JOIN slack_installations ON slack_installations.workspace_id = workspaces.id
-    WHERE workspaces.slack_workspace_id = ${slackWorkspaceId}
-  `;
-  if (!installation) return null;
-  let [team] = await sql`SELECT id FROM teams WHERE workspace_id = ${installation.workspaceId} ORDER BY created_at LIMIT 1`;
-  if (!team) [team] = await sql`INSERT INTO teams (workspace_id, name, timezone) VALUES (${installation.workspaceId}, 'Daily team', 'Asia/Kolkata') RETURNING id`;
-  let [standup] = await sql`SELECT id FROM standups WHERE team_id = ${team.id} AND is_active = true LIMIT 1`;
-  if (!standup) [standup] = await sql`INSERT INTO standups (team_id, name, prompt_time, reminder_time, digest_time, working_days) VALUES (${team.id}, 'Daily standup', '10:00', '14:00', '17:30', ${JSON.stringify(['monday','tuesday','wednesday','thursday','friday'])}::jsonb) RETURNING id`;
-  let [user] = await sql`SELECT id FROM users WHERE slack_user_id = ${slackUserId} LIMIT 1`;
-  if (!user) [user] = await sql`INSERT INTO users (workspace_id, slack_user_id, name, timezone) VALUES (${installation.workspaceId}, ${slackUserId}, 'Slack member', 'Asia/Kolkata') RETURNING id`;
-  await sql`INSERT INTO team_members (team_id, user_id, is_active) VALUES (${team.id}, ${user.id}, true) ON CONFLICT (team_id, user_id) DO NOTHING`;
-  return { token: installation.botToken, standupId: standup.id, userId: user.id };
+  console.log("standupContext started");
+
+  try {
+    console.log("Query 1");
+
+    const [installation] = await sql`
+      SELECT workspaces.id AS "workspaceId",
+             slack_installations.bot_token AS "botToken"
+      FROM workspaces
+      JOIN slack_installations
+        ON slack_installations.workspace_id = workspaces.id
+      WHERE workspaces.slack_workspace_id = ${slackWorkspaceId}
+    `;
+
+    console.log("Installation:", installation);
+
+    if (!installation) {
+      console.log("No installation found");
+      return null;
+    }
+
+    let [team] = await sql`SELECT id FROM teams WHERE workspace_id = ${installation.workspaceId} ORDER BY created_at LIMIT 1`;
+    if (!team) [team] = await sql`INSERT INTO teams (workspace_id, name, timezone) VALUES (${installation.workspaceId}, 'Daily team', 'Asia/Kolkata') RETURNING id`;
+    let [standup] = await sql`SELECT id FROM standups WHERE team_id = ${team.id} AND is_active = true LIMIT 1`;
+    if (!standup) [standup] = await sql`INSERT INTO standups (team_id, name, prompt_time, reminder_time, digest_time, working_days) VALUES (${team.id}, 'Daily standup', '10:00', '14:00', '17:30', ${JSON.stringify(['monday','tuesday','wednesday','thursday','friday'])}::jsonb) RETURNING id`;
+    let [user] = await sql`SELECT id FROM users WHERE slack_user_id = ${slackUserId} LIMIT 1`;
+    if (!user) [user] = await sql`INSERT INTO users (workspace_id, slack_user_id, name, timezone) VALUES (${installation.workspaceId}, ${slackUserId}, 'Slack member', 'Asia/Kolkata') RETURNING id`;
+    await sql`INSERT INTO team_members (team_id, user_id, is_active) VALUES (${team.id}, ${user.id}, true) ON CONFLICT (team_id, user_id) DO NOTHING`;
+    return { token: installation.botToken, standupId: standup.id, userId: user.id };
+  } catch (err) {
+    console.error("standupContext ERROR");
+    console.error(err);
+    throw err;
+  }
 }
 
 async function handleSlackMessage(event, slackWorkspaceId) {
