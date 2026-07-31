@@ -171,10 +171,19 @@ async function handleSlackMessage(event, slackWorkspaceId) {
 }
 
 app.post('/api/slack/events', async (req, res) => {
-  if (!isValidSlackRequest(req)) return res.status(401).send('Invalid Slack signature');
-  if (req.body.type === 'url_verification') return res.status(200).send(req.body.challenge);
+  if (req.body.type === 'url_verification') {
+    return res.status(200).send(req.body.challenge);
+  }
+
+  if (!isValidSlackRequest(req)) {
+    return res.status(401).send('Invalid Slack signature');
+  }
+
   res.status(200).send();
-  if (req.body.type === 'event_callback') handleSlackMessage(req.body.event, req.body.team_id).catch((error) => console.error('Slack event failed', error.message));
+
+  if (req.body.type === 'event_callback') {
+    handleSlackMessage(req.body.event, req.body.team_id).catch(console.error);
+  }
 });
 
 if (!process.env.VERCEL) {
