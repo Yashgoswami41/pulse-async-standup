@@ -171,6 +171,8 @@ async function handleSlackMessage(event, slackWorkspaceId) {
 }
 
 app.post('/api/slack/events', async (req, res) => {
+  console.log(req.body);
+  console.log(req.headers);
   if (req.body.type === 'url_verification') {
     return res.status(200).send(req.body.challenge);
   }
