@@ -9,5 +9,7 @@ if (!connectionString) {
 
 export const sql = postgres(connectionString, {
   ssl: 'require',
-  max: 1,
+  connect_timeout: 10,
+  idle_timeout: 20,
+  max: 5,
 });

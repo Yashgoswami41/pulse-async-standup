@@ -26,6 +26,19 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/db-test', async (_req, res) => {
+  try {
+    const result = await sql`SELECT NOW() AS now`;
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
 app.get('/api/teams', async (_req, res) => {
   try {
     const teams = await sql`SELECT id, name, timezone FROM teams ORDER BY name ASC`;
