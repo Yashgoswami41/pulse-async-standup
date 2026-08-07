@@ -149,22 +149,17 @@ async function standupContext(slackWorkspaceId, slackUserId) {
 
   try {
 
-    console.log("Running Query 1...");
+    console.log("Q1");
 
-    const installation = await sql`
-      SELECT
-        workspaces.id AS "workspaceId",
-        slack_installations.bot_token AS "botToken"
+    const workspaces = await sql`
+      SELECT *
       FROM workspaces
-      JOIN slack_installations
-      ON slack_installations.workspace_id = workspaces.id
-      WHERE workspaces.slack_workspace_id = ${slackWorkspaceId}
     `;
 
-    console.log("Query 1 Result:");
-    console.log(JSON.stringify(installation, null, 2));
+    console.log("Q1 OK");
+    console.log(workspaces);
 
-    if (!installation || installation.length === 0) {
+    if (!workspaces || workspaces.length === 0) {
       console.log("No installation found");
       return null;
     }
