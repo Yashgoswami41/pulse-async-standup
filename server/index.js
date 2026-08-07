@@ -144,42 +144,16 @@ async function sendSlackMessage(token, channel, text) {
 }
 
 async function standupContext(slackWorkspaceId, slackUserId) {
-
   console.log("standupContext started");
 
-  try {
+  console.log("Before SELECT 1");
 
-    console.log("Q1");
+  const test = await sql`SELECT 1 AS value`;
 
-    const workspaces = await sql`
-      SELECT *
-      FROM workspaces
-    `;
+  console.log("After SELECT 1");
+  console.log(test);
 
-    console.log("Q1 OK");
-    console.log(workspaces);
-
-    if (!workspaces || workspaces.length === 0) {
-      console.log("No installation found");
-      return null;
-    }
-
-    const [installationRow] = installation;
-    const installationData = installationRow;
-
-    let [team] = await sql`SELECT id FROM teams WHERE workspace_id = ${installationData.workspaceId} ORDER BY created_at LIMIT 1`;
-    if (!team) [team] = await sql`INSERT INTO teams (workspace_id, name, timezone) VALUES (${installationData.workspaceId}, 'Daily team', 'Asia/Kolkata') RETURNING id`;
-    let [standup] = await sql`SELECT id FROM standups WHERE team_id = ${team.id} AND is_active = true LIMIT 1`;
-    if (!standup) [standup] = await sql`INSERT INTO standups (team_id, name, prompt_time, reminder_time, digest_time, working_days) VALUES (${team.id}, 'Daily standup', '10:00', '14:00', '17:30', ${JSON.stringify(['monday','tuesday','wednesday','thursday','friday'])}::jsonb) RETURNING id`;
-    let [user] = await sql`SELECT id FROM users WHERE slack_user_id = ${slackUserId} LIMIT 1`;
-    if (!user) [user] = await sql`INSERT INTO users (workspace_id, slack_user_id, name, timezone) VALUES (${installationData.workspaceId}, ${slackUserId}, 'Slack member', 'Asia/Kolkata') RETURNING id`;
-    await sql`INSERT INTO team_members (team_id, user_id, is_active) VALUES (${team.id}, ${user.id}, true) ON CONFLICT (team_id, user_id) DO NOTHING`;
-    return { token: installationData.botToken, standupId: standup.id, userId: user.id };
-  } catch (err) {
-    console.error("standupContext ERROR");
-    console.error(err);
-    throw err;
-  }
+  return null;
 }
 
 async function handleSlackMessage(event, slackWorkspaceId) {
